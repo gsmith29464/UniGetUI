@@ -1,8 +1,9 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using System.Web;
 using UniGetUI.Core.Data;
 using UniGetUI.Core.Tools;
-using UniGetUI.PackageEngine.Classes.Manager.ManagerHelpers;
+using UniGetUI.PackageEngine.Interfaces;
+using UniGetUI.PackageEngine.ManagerClasses.Classes;
 using UniGetUI.PackageEngine.ManagerClasses.Manager;
 using UniGetUI.PackageEngine.PackageClasses;
 
@@ -10,33 +11,24 @@ namespace UniGetUI.PackageEngine.Managers.PowerShellManager
 {
     public abstract class BaseNuGet : PackageManager
     {
-        new public static string[] FALSE_PACKAGE_NAMES = [""];
-        new public static string[] FALSE_PACKAGE_IDS = [""];
-        new public static string[] FALSE_PACKAGE_VERSIONS = [""];
-
-        public BaseNuGet() : base()
-        {
-            PackageDetailsProvider = new BaseNuGetDetailsProvider(this);
-        }
-
-        public sealed override async Task InitializeAsync()
+        public sealed override void Initialize()
         {
             if (PackageDetailsProvider is not BaseNuGetDetailsProvider)
             {
-                throw new Exception("NuGet-based package managers must not reassign the PackageDetailsProvider property");
+                throw new InvalidOperationException("NuGet-based package managers must not reassign the PackageDetailsProvider property");
             }
 
             if (!Capabilities.SupportsCustomVersions)
             {
-                throw new Exception("NuGet-based package managers must support custom versions");
+                throw new InvalidOperationException("NuGet-based package managers must support custom versions");
             }
 
             if (!Capabilities.SupportsCustomPackageIcons)
             {
-                throw new Exception("NuGet-based package managers must support custom versions");
+                throw new InvalidOperationException("NuGet-based package managers must support custom versions");
             }
 
-            await base.InitializeAsync();
+            base.Initialize();
         }
 
         private struct SearchResult
@@ -46,30 +38,29 @@ namespace UniGetUI.PackageEngine.Managers.PowerShellManager
             public string id;
         }
 
-        protected sealed override async Task<Package[]> FindPackages_UnSafe(string query)
+        protected sealed override IEnumerable<Package> FindPackages_UnSafe(string query)
         {
             List<Package> Packages = [];
+            INativeTaskLogger logger = TaskLogger.CreateNew(Enums.LoggableTaskType.FindPackages);
 
-            ManagerClasses.Classes.NativeTaskLogger logger = TaskLogger.CreateNew(Enums.LoggableTaskType.FindPackages);
-
-            ManagerSource[] sources;
+            IEnumerable<IManagerSource> sources;
             if (Capabilities.SupportsCustomSources)
             {
-                sources = await GetSources();
+                sources = GetSources();
             }
             else
             {
-                sources = [Properties.DefaultSource];
+                sources = [ Properties.DefaultSource ];
             }
 
-            foreach (ManagerSource source in sources)
+            foreach(IManagerSource source in sources)
             {
                 Uri SearchUrl = new($"{source.Url}/Search()?searchTerm=%27{HttpUtility.UrlEncode(query)}%27&targetFramework=%27%27&includePrerelease=false");
-                logger.Log($"Begin package search with url={SearchUrl} on manager {Name}"); ;
+                logger.Log($"Begin package search with url={SearchUrl} on manager {Name}");
 
                 using HttpClient client = new(CoreData.GenericHttpClientParameters);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd(CoreData.UserAgentString);
-                HttpResponseMessage response = await client.GetAsync(SearchUrl);
+                HttpResponseMessage response = client.GetAsync(SearchUrl).GetAwaiter().GetResult();
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -77,7 +68,7 @@ namespace UniGetUI.PackageEngine.Managers.PowerShellManager
                     continue;
                 }
 
-                string SearchResults = await response.Content.ReadAsStringAsync();
+                string SearchResults = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                 MatchCollection matches = Regex.Matches(SearchResults, "<entry>([\\s\\S]*?)<\\/entry>");
 
                 Dictionary<string, SearchResult> AlreadyProcessedPackages = [];
@@ -92,9 +83,9 @@ namespace UniGetUI.PackageEngine.Managers.PowerShellManager
                     string id = Regex.Match(match.Value, "Id='([^<>']+)'").Groups[1].Value;
                     string version = Regex.Match(match.Value, "Version='([^<>']+)'").Groups[1].Value;
                     double float_version = CoreTools.GetVersionStringAsFloat(version);
-                    Match title = Regex.Match(match.Value, "<title[ \\\"\\=A-Za-z0-9]+>([^<>]+)<\\/title>");
+                    // Match title = Regex.Match(match.Value, "<title[ \\\"\\=A-Za-z0-9]+>([^<>]+)<\\/title>");
 
-                    if (AlreadyProcessedPackages.ContainsKey(id) && AlreadyProcessedPackages[id].version_float >= float_version)
+                    if (AlreadyProcessedPackages.TryGetValue(id, out var value) && value.version_float >= float_version)
                     {
                         continue;
                     }
@@ -110,7 +101,7 @@ namespace UniGetUI.PackageEngine.Managers.PowerShellManager
 
             logger.Close(0);
 
-            return Packages.ToArray();
+            return Packages;
         }
 
     }

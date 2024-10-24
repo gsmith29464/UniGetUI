@@ -1,4 +1,3 @@
-﻿using CommunityToolkit.WinUI.Notifications;
 using Microsoft.UI.Dispatching;
 using Microsoft.Windows.AppLifecycle;
 using UniGetUI.Core.Data;
@@ -10,7 +9,7 @@ namespace UniGetUI
     public static class EntryPoint
     {
         [STAThread]
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             // Having an async main method breaks WebView2
             try
@@ -29,7 +28,7 @@ namespace UniGetUI
                 else
                 {
                     // Otherwise, run UniGetUI as normal
-                    _ = AsyncMain(args);
+                    _ = AsyncMain();
                 }
             }
             catch (Exception e)
@@ -41,18 +40,16 @@ namespace UniGetUI
         /// <summary>
         /// UniGetUI app main entry point
         /// </summary>
-        /// <param name="args">Call arguments</param>
-        /// <returns></returns>
-        static async Task AsyncMain(string[] args)
+        private static async Task AsyncMain()
         {
             try
             {
                 string textart = $"""
                      __  __      _ ______     __  __  ______
                     / / / /___  (_) ____/__  / /_/ / / /  _/
-                   / / / / __ \/ / / __/ _ \/ __/ / / // /  
-                  / /_/ / / / / / /_/ /  __/ /_/ /_/ // /   
-                  \____/_/ /_/_/\____/\___/\__/\____/___/   
+                   / / / / __ \/ / / __/ _ \/ __/ / / // /
+                  / /_/ / / / / / /_/ /  __/ /_/ /_/ // /
+                  \____/_/ /_/_/\____/\___/\__/\____/___/
                       Welcome to UniGetUI Version {CoreData.VersionName}
                   """;
 
@@ -68,12 +65,12 @@ namespace UniGetUI
                 // If this is the main instance, start the app
                 if (!isRedirect)
                 {
-                    Microsoft.UI.Xaml.Application.Start((p) =>
+                    Microsoft.UI.Xaml.Application.Start((_) =>
                     {
                         DispatcherQueueSynchronizationContext context = new(
                             DispatcherQueue.GetForCurrentThread());
                         SynchronizationContext.SetSynchronizationContext(context);
-                        new MainApp();
+                        var app = new MainApp();
                     });
                 }
             }
@@ -86,33 +83,30 @@ namespace UniGetUI
         /// <summary>
         /// Default WinUI Redirector
         /// </summary>
-        /// <returns></returns>
         private static async Task<bool> DecideRedirection()
         {
             try
             {
-                // Idk how does this work, I copied it from the MS Docs
+                // IDK how does this work, I copied it from the MS Docs
                 // example on single-instance apps using unpackaged AppSdk + WinUI3
                 bool isRedirect = false;
-                AppActivationArguments args = AppInstance.GetCurrent().GetActivatedEventArgs();
-                ExtendedActivationKind kind = args.Kind;
 
-                AppInstance keyInstance = AppInstance.FindOrRegisterForKey("MartiCliment.UniGetUI.MainInterface");
+                var keyInstance = AppInstance.FindOrRegisterForKey("MartiCliment.UniGetUI.MainInterface");
 
                 if (keyInstance.IsCurrent)
                 {
-                    keyInstance.Activated += async (s, e) =>
+                    keyInstance.Activated += async (_, e) =>
                     {
-                        MainApp? AppInstance = MainApp.Current as MainApp;
-                        if (AppInstance != null)
+                        if (MainApp.Current is MainApp baseInstance)
                         {
-                            await AppInstance.ShowMainWindowFromRedirectAsync();
+                            await baseInstance.ShowMainWindowFromRedirectAsync(e);
                         }
                     };
                 }
                 else
                 {
                     isRedirect = true;
+                    AppActivationArguments args = AppInstance.GetCurrent().GetActivatedEventArgs();
                     await keyInstance.RedirectActivationToAsync(args);
                 }
                 return isRedirect;
@@ -130,38 +124,38 @@ namespace UniGetUI
         /// </summary>
         private static void UninstallPreps()
         {
-            try
+            /*try
             {
-                ToastNotificationManagerCompat.Uninstall();
+                AppNotificationManager.Default.UnregisterAll();
             }
             catch
             {
-            }
+            }*/
         }
 
         // This method shall be ran as administrator
-        static private void WingetUIToUniGetUIMigrator()
+        private static void WingetUIToUniGetUIMigrator()
         {
             try
             {
                 string[] BasePaths =
-                {
+                [
                     // User desktop icon
                     Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
-                    
+
                     // User start menu icon
                     Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),
-                    
+
                     // Common desktop icon
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),
-                    
+
                     // User start menu icon
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu),
-                };
+                ];
 
                 foreach (string path in BasePaths)
                 {
-                    foreach (string old_wingetui_icon in new []{ "WingetUI.lnk", "WingetUI .lnk", "UniGetUI (formerly WingetUI) .lnk" })
+                    foreach (string old_wingetui_icon in new[] { "WingetUI.lnk", "WingetUI .lnk", "UniGetUI (formerly WingetUI) .lnk" })
                     {
                         try
                         {
@@ -171,7 +165,8 @@ namespace UniGetUI
                             {
                                 continue;
                             }
-                            else if (File.Exists(old_file) && File.Exists(new_file))
+
+                            if (File.Exists(old_file) && File.Exists(new_file))
                             {
                                 Logger.Info("Deleting shortcut " + old_file + " since new shortcut already exists");
                                 File.Delete(old_file);

@@ -1,10 +1,13 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using UniGetUI.Core.Data;
 using UniGetUI.Core.Logging;
 using UniGetUI.Core.SettingsEngine;
 
 namespace UniGetUI.Core.IconEngine
 {
+    /// <summary>
+    /// This class represents the structure of the icon and screenshot database. It is used to deserialize the JSON data.
+    /// </summary>
     public class IconDatabase
     {
         public struct IconCount
@@ -15,13 +18,13 @@ namespace UniGetUI.Core.IconEngine
             public IconCount() { }
         }
 
-        private static IconDatabase? __instance = null;
+        private static IconDatabase? __instance;
 
         public static IconDatabase Instance
         {
             get
             {
-                if (__instance == null)
+                if (__instance is null)
                 {
                     Logger.Error("IconStore.Instance was not initialized, creating an empty instance.");
                     InitializeInstance();
@@ -43,14 +46,8 @@ namespace UniGetUI.Core.IconEngine
         private IconCount __icon_count = new();
 
         /// <summary>
-        /// Tis class represents the structure of the icon and screenshot database. It is used to deserialize the JSON data.
-        /// </summary>
-
-
-        /// <summary>
         /// Download the icon and screenshots database to a local file, and load it into memory
         /// </summary>
-        /// <returns></returns>
         public async void LoadIconAndScreenshotsDatabase()
         {
             await LoadIconAndScreenshotsDatabaseAsync();
@@ -61,7 +58,7 @@ namespace UniGetUI.Core.IconEngine
             string IconsAndScreenshotsFile = Path.Join(CoreData.UniGetUICacheDirectory_Data, "Icon Database.json");
             try
             {
-                Uri DownloadUrl = new("https://raw.githubusercontent.com/marticliment/WingetUI/main/WebBasedData/screenshot-database-v2.json");
+                Uri DownloadUrl = new("https://raw.githubusercontent.com/marticliment/UniGetUI/main/WebBasedData/screenshot-database-v2.json");
                 if (Settings.Get("IconDataBaseURL"))
                 {
                     DownloadUrl = new Uri(Settings.GetValue("IconDataBaseURL"));
@@ -83,7 +80,6 @@ namespace UniGetUI.Core.IconEngine
                 Logger.Warn(e);
             }
 
-
             if (!File.Exists(IconsAndScreenshotsFile))
             {
                 Logger.Error("Icon Database file not found");
@@ -92,13 +88,16 @@ namespace UniGetUI.Core.IconEngine
 
             try
             {
-                IconScreenshotDatabase_v2 JsonData = JsonSerializer.Deserialize<IconScreenshotDatabase_v2>(await File.ReadAllTextAsync(IconsAndScreenshotsFile));
-                if (JsonData.icons_and_screenshots != null)
+                IconScreenshotDatabase_v2 JsonData = JsonSerializer.Deserialize<IconScreenshotDatabase_v2>(
+                    await File.ReadAllTextAsync(IconsAndScreenshotsFile),
+                    CoreData.SerializingOptions
+                    );
+                if (JsonData.icons_and_screenshots is not null)
                 {
                     IconDatabaseData = JsonData.icons_and_screenshots;
                 }
 
-                __icon_count = new IconCount()
+                __icon_count = new IconCount
                 {
                     PackagesWithIconCount = JsonData.package_count.packages_with_icon,
                     PackagesWithScreenshotCount = JsonData.package_count.packages_with_screenshot,
@@ -112,14 +111,19 @@ namespace UniGetUI.Core.IconEngine
             }
         }
 
-        public string GetIconUrlForId(string id)
+        public string? GetIconUrlForId(string id)
         {
-            return IconDatabaseData.ContainsKey(id) ? IconDatabaseData[id].icon : "";
+            if (IconDatabaseData.TryGetValue(id, out var value) && value.icon.Length != 0)
+            {
+                return value.icon;
+            }
+
+            return null;
         }
 
         public string[] GetScreenshotsUrlForId(string id)
         {
-            return IconDatabaseData.ContainsKey(id) ? IconDatabaseData[id].images.ToArray() : [];
+            return IconDatabaseData.TryGetValue(id, out var value) ? value.images.ToArray() : [];
         }
 
         public IconCount GetIconCount()

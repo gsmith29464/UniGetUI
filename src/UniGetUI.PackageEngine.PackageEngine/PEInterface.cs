@@ -1,9 +1,11 @@
-﻿using UniGetUI.Core.Logging;
-using UniGetUI.PackageEngine.ManagerClasses.Manager;
+using UniGetUI.Core.Logging;
+using UniGetUI.PackageEngine.Interfaces;
+using UniGetUI.PackageEngine.Managers.CargoManager;
 using UniGetUI.PackageEngine.Managers.ChocolateyManager;
 using UniGetUI.PackageEngine.Managers.DotNetManager;
 using UniGetUI.PackageEngine.Managers.NpmManager;
 using UniGetUI.PackageEngine.Managers.PipManager;
+using UniGetUI.PackageEngine.Managers.PowerShell7Manager;
 using UniGetUI.PackageEngine.Managers.PowerShellManager;
 using UniGetUI.PackageEngine.Managers.ScoopManager;
 using UniGetUI.PackageEngine.Managers.WingetManager;
@@ -16,7 +18,7 @@ namespace UniGetUI.PackageEngine
     /// </summary>
     public static class PEInterface
     {
-        private const int ManagerLoadTimeout = 10000; // 10 seconds timeout for Package Manager initialization
+        private const int ManagerLoadTimeout = 60; // 60 seconds timeout for Package Manager initialization (in seconds)
 
         public static readonly WinGet WinGet = new();
         public static readonly Scoop Scoop = new();
@@ -25,26 +27,29 @@ namespace UniGetUI.PackageEngine
         public static readonly Pip Pip = new();
         public static readonly DotNet DotNet = new();
         public static readonly PowerShell PowerShell = new();
+        public static readonly PowerShell7 PowerShell7 = new();
+        public static readonly Cargo Cargo = new();
 
-        public static readonly PackageManager[] Managers = [WinGet, Scoop, Chocolatey, Npm, Pip, DotNet, PowerShell];
+        public static readonly IPackageManager[] Managers = [WinGet, Scoop, Chocolatey, Npm, Pip, Cargo, DotNet, PowerShell, PowerShell7];
 
         public static readonly DiscoverablePackagesLoader DiscoveredPackagesLoader = new(Managers);
         public static readonly UpgradablePackagesLoader UpgradablePackagesLoader = new(Managers);
         public static readonly InstalledPackagesLoader InstalledPackagesLoader = new(Managers);
+        public static readonly PackageBundlesLoader PackageBundlesLoader = new(Managers);
 
-        public static async Task Initialize()
+        public static void Initialize()
         {
             List<Task> initializeTasks = [];
 
-            foreach (PackageManager manager in Managers)
+            foreach (IPackageManager manager in Managers)
             {
-                initializeTasks.Add(manager.InitializeAsync());
+                initializeTasks.Add(Task.Run(() => manager.Initialize()));
             }
 
             Task ManagersMetaTask = Task.WhenAll(initializeTasks);
             try
             {
-                await ManagersMetaTask.WaitAsync(TimeSpan.FromMilliseconds(ManagerLoadTimeout));
+                ManagersMetaTask.Wait(TimeSpan.FromSeconds(ManagerLoadTimeout));
             }
             catch (Exception e)
             {

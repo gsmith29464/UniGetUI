@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using UniGetUI.Core.Classes;
@@ -10,16 +10,13 @@ namespace UniGetUI.Core.Language
 {
     public static class LanguageData
     {
-        /// <summary>
-        /// Returns 
-        /// </summary>
         private static Person[]? __translators_list;
 
         public static Person[] TranslatorsList
         {
             get
             {
-                if (__translators_list == null)
+                if (__translators_list is null)
                 {
                     __translators_list = LoadLanguageTranslatorList();
                 }
@@ -33,7 +30,7 @@ namespace UniGetUI.Core.Language
         {
             get
             {
-                if (__language_reference == null)
+                if (__language_reference is null)
                 {
                     __language_reference = LoadLanguageReference();
                 }
@@ -47,7 +44,7 @@ namespace UniGetUI.Core.Language
         {
             get
             {
-                if (__translation_percentages == null)
+                if (__translation_percentages is null)
                 {
                     __translation_percentages = LoadTranslationPercentages();
                 }
@@ -58,26 +55,22 @@ namespace UniGetUI.Core.Language
 
         private static ReadOnlyDictionary<string, string> LoadTranslationPercentages()
         {
-            if (JsonObject.Parse(File.ReadAllText(Path.Join(CoreData.UniGetUIExecutableDirectory, "Assets", "Data", "TranslatedPercentages.json"))) is JsonObject val)
+            if (JsonNode.Parse(File.ReadAllText(Path.Join(CoreData.UniGetUIExecutableDirectory, "Assets", "Data", "TranslatedPercentages.json"))) is JsonObject val)
             {
                 return new(val.ToDictionary(x => x.Key, x => (x.Value ?? ("404%" + x.Key)).ToString()));
             }
-            else
-            {
-                return new(new Dictionary<string, string>());
-            }
+
+            return new(new Dictionary<string, string>());
         }
 
         private static ReadOnlyDictionary<string, string> LoadLanguageReference()
         {
-            if (JsonObject.Parse(File.ReadAllText(Path.Join(CoreData.UniGetUIExecutableDirectory, "Assets", "Data", "LanguagesReference.json"))) is JsonObject val)
+            if (JsonNode.Parse(File.ReadAllText(Path.Join(CoreData.UniGetUIExecutableDirectory, "Assets", "Data", "LanguagesReference.json"))) is JsonObject val)
             {
                 return new(val.ToDictionary(x => x.Key, x => (x.Value ?? ("NoNameLang_" + x.Key)).ToString()));
             }
-            else
-            {
-                return new(new Dictionary<string, string>());
-            }
+
+            return new(new Dictionary<string, string>());
         }
 
         private static Person[] LoadLanguageTranslatorList()
@@ -108,14 +101,14 @@ namespace UniGetUI.Core.Language
                     }
 
                     Uri? url = null;
-                    if (translator["link"] != null && translator["link"]?.ToString() != "")
+                    if (translator["link"] is not null && translator["link"]?.ToString() != "")
                     {
                         url = new Uri((translator["link"] ?? "").ToString());
                     }
 
                     Person person = new(
-                        Name: (url != null ? "@" : "") + (translator["name"] ?? "").ToString(),
-                        ProfilePicture: url != null ? new Uri(url.ToString() + ".png") : null,
+                        Name: (url is not null ? "@" : "") + (translator["name"] ?? "").ToString(),
+                        ProfilePicture: url is not null ? new Uri(url.ToString() + ".png") : null,
                         GitHubUrl: url,
                         Language: !LangShown ? LanguageData.LanguageReference[langKey.Key] : ""
                     );
@@ -160,8 +153,7 @@ namespace UniGetUI.Core.Language
 
         public static readonly Dictionary<PackageScope, string> ScopeNames_NonLang = new()
         {
-            { PackageScope.Global, "mac" +
-                "hine" },
+            { PackageScope.Global, "machine" },
             { PackageScope.Local, "user" },
         };
 

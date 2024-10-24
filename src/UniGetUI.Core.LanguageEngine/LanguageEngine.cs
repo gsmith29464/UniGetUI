@@ -1,7 +1,7 @@
-﻿using Jeffijoe.MessageFormat;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json.Nodes;
+using Jeffijoe.MessageFormat;
 using UniGetUI.Core.Data;
 using UniGetUI.Core.Logging;
 using UniGetUI.Core.SettingsEngine;
@@ -51,49 +51,72 @@ namespace UniGetUI.Core.Language
             Logger.Info("Loaded language locale: " + Locale);
         }
 
-        public Dictionary<string, string> LoadLanguageFile(string LangKey, bool ForceBundled = false)
+        public Dictionary<string, string> LoadLanguageFile(string LangKey)
         {
             try
             {
-                Dictionary<string, string> LangDict = [];
-                string LangFileToLoad = Path.Join(CoreData.UniGetUICacheDirectory_Lang, "lang_" + LangKey + ".json");
 
-                if (!File.Exists(LangFileToLoad) || Settings.Get("DisableLangAutoUpdater"))
+                string BundledLangFileToLoad = Path.Join(CoreData.UniGetUIExecutableDirectory, "Assets", "Languages", "lang_" + LangKey + ".json");
+                JsonObject BundledContents = new();
+
+                if (!File.Exists(BundledLangFileToLoad))
                 {
-                    ForceBundled = true;
-                }
-
-                if (ForceBundled)
-                {
-                    LangFileToLoad = Path.Join(CoreData.UniGetUIExecutableDirectory, "Assets", "Languages", "lang_" + LangKey + ".json");
-                    if (!File.Exists(LangFileToLoad))
-                    {
-                        Logger.Error($"Tried to access a non-existing bundled language file! file={LangFileToLoad}");
-                    }
-                }
-
-
-                Dictionary<string, string>? __LangDict = (JsonNode.Parse(File.ReadAllText(LangFileToLoad)) as JsonObject)?.ToDictionary(x => x.Key, x => x.Value != null ? x.Value.ToString() : "");
-
-                if (__LangDict != null)
-                {
-                    LangDict = __LangDict;
+                    Logger.Error($"Tried to access a non-existing bundled language file! file={BundledLangFileToLoad}");
                 }
                 else
                 {
-                    Logger.Error($"Deserialization of language file {LangFileToLoad} resulted in a null object");
+                    try
+                    {
+                        if (JsonNode.Parse(File.ReadAllText(BundledLangFileToLoad)) is JsonObject parsedObject)
+                            BundledContents = parsedObject;
+                        else
+                            throw new ArgumentException($"parsedObject was null for lang file {BundledLangFileToLoad}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn($"Something went wrong when parsing language file {BundledLangFileToLoad}");
+                        Logger.Warn(ex);
+                    }
+                }
+
+                Dictionary<string, string> LangDict = BundledContents.ToDictionary(x => x.Key, x => x.Value?.ToString() ?? "");
+
+
+                string CachedLangFileToLoad = Path.Join(CoreData.UniGetUICacheDirectory_Lang, "lang_" + LangKey + ".json");
+
+                if (Settings.Get("DisableLangAutoUpdater"))
+                {
+                    Logger.Warn("User has updated translations disabled");
+                }
+                else if(!File.Exists(CachedLangFileToLoad))
+                {
+                    Logger.Warn($"Tried to access a non-existing cached language file! file={CachedLangFileToLoad}");
+                }
+                else
+                {
+                    try
+                    {
+                        if (JsonNode.Parse(File.ReadAllText(CachedLangFileToLoad)) is JsonObject parsedObject)
+                            foreach (var keyval in parsedObject.ToDictionary(x => x.Key, x => x.Value))
+                                LangDict[keyval.Key] = keyval.Value?.ToString() ?? "";
+                        else
+                            throw new ArgumentException($"parsedObject was null for lang file {CachedLangFileToLoad}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn($"Something went wrong when parsing language file {BundledLangFileToLoad}");
+                        Logger.Warn(ex);
+                    }
                 }
 
                 if (!Settings.Get("DisableLangAutoUpdater"))
-                {
                     _ = DownloadUpdatedLanguageFile(LangKey);
-                }
 
                 return LangDict;
             }
             catch (Exception e)
             {
-                Logger.Error($"LoadLanguageFile Failed for LangKey={LangKey}, ForceBundled={ForceBundled}");
+                Logger.Error($"LoadLanguageFile Failed for LangKey={LangKey}");
                 Logger.Error(e);
                 return [];
             }
@@ -103,13 +126,11 @@ namespace UniGetUI.Core.Language
         /// Downloads and saves an updated version of the translations for the specified language.
         /// </summary>
         /// <param name="LangKey">The Id of the language to download</param>
-        /// <param name="UseOldUrl">Use the new or the old Url (should not be used manually)</param>
-        /// <returns></returns>
         public async Task DownloadUpdatedLanguageFile(string LangKey)
         {
             try
             {
-                Uri NewFile = new("https://raw.githubusercontent.com/marticliment/WingetUI/main/src/UniGetUI.Core.LanguageEngine/Assets/Languages/lang_" + LangKey + ".json");
+                Uri NewFile = new("https://raw.githubusercontent.com/marticliment/UniGetUI/main/src/UniGetUI.Core.LanguageEngine/Assets/Languages/lang_" + LangKey + ".json");
 
                 HttpClient client = new(CoreData.GenericHttpClientParameters);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd(CoreData.UserAgentString);
@@ -145,35 +166,30 @@ namespace UniGetUI.Core.Language
         {
             if (key == "WingetUI")
             {
-                if (MainLangDict.ContainsKey("formerly WingetUI") && MainLangDict["formerly WingetUI"] != "")
+                if (MainLangDict.TryGetValue("formerly WingetUI", out var formerly) && formerly != "")
                 {
-                    return "UniGetUI (" + MainLangDict["formerly WingetUI"] + ")";
+                    return "UniGetUI (" + formerly + ")";
                 }
 
                 return "UniGetUI (formerly WingetUI)";
             }
-            else if (key == "Formerly known as WingetUI")
-            {
-                if (MainLangDict.ContainsKey(key))
-                {
-                    return MainLangDict[key];
-                }
 
-                return key;
+            if (key == "Formerly known as WingetUI")
+            {
+                return MainLangDict.GetValueOrDefault(key, key);
             }
 
             if (key is null or "")
             {
                 return "";
             }
-            else if (MainLangDict.ContainsKey(key) && MainLangDict[key] != "")
+
+            if (MainLangDict.TryGetValue(key, out var value) && value != "")
             {
-                return MainLangDict[key].Replace("WingetUI", "UniGetUI");
+                return value.Replace("WingetUI", "UniGetUI");
             }
-            else
-            {
-                return key.Replace("WingetUI", "UniGetUI");
-            }
+
+            return key.Replace("WingetUI", "UniGetUI");
         }
 
         public string Translate(string key, Dictionary<string, object?> dict)

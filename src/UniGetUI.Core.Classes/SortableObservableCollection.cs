@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 
 namespace UniGetUI.Core.Classes
@@ -7,13 +7,14 @@ namespace UniGetUI.Core.Classes
     {
         public Func<T, object>? SortingSelector { get; set; }
         public bool Descending { get; set; }
-        public bool BlockSorting { get; set; } = false;
+        public bool BlockSorting { get; set; }
+
         protected override void OnCollectionChanged(NotifyCollectionChangedEventArgs e)
         {
             if (!BlockSorting)
             {
                 base.OnCollectionChanged(e);
-                if (SortingSelector == null
+                if (SortingSelector is null
                     || e.Action == NotifyCollectionChangedAction.Remove
                     || e.Action == NotifyCollectionChangedAction.Reset)
                 {
@@ -28,9 +29,9 @@ namespace UniGetUI.Core.Classes
         {
             BlockSorting = true;
 
-            if (SortingSelector == null)
+            if (SortingSelector is null)
             {
-                throw new Exception("SortableObservableCollection<T>.SortingSelector must not be null when sorting");
+                throw new InvalidOperationException("SortableObservableCollection<T>.SortingSelector must not be null when sorting");
             }
 
             List<T> sorted = Descending ? this.OrderByDescending(SortingSelector).ToList() : this.OrderBy(SortingSelector).ToList();

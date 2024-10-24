@@ -1,7 +1,6 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-using System;
 using System.Runtime.InteropServices;
 using Windows.Win32;
 using Windows.Win32.System.Com;
@@ -11,8 +10,8 @@ namespace WindowsPackageManager.Interop;
 
 public class WindowsPackageManagerStandardFactory : WindowsPackageManagerFactory
 {
-    public WindowsPackageManagerStandardFactory(ClsidContext clsidContext = ClsidContext.Prod)
-        : base(clsidContext)
+    public WindowsPackageManagerStandardFactory(ClsidContext clsidContext = ClsidContext.Prod, bool allowLowerTrustRegistration = false)
+        : base(clsidContext, allowLowerTrustRegistration)
     {
     }
 
@@ -21,15 +20,21 @@ public class WindowsPackageManagerStandardFactory : WindowsPackageManagerFactory
         nint pUnknown = IntPtr.Zero;
         try
         {
-            Windows.Win32.Foundation.HRESULT hr = PInvoke.CoCreateInstance(clsid, null, CLSCTX.CLSCTX_LOCAL_SERVER, iid, out object result);
+            CLSCTX clsctx = CLSCTX.CLSCTX_LOCAL_SERVER;
+            if(_allowLowerTrustRegistration)
+            {
+                clsctx |= CLSCTX.CLSCTX_ALLOW_LOWER_TRUST_REGISTRATION;
+            }
+
+            Windows.Win32.Foundation.HRESULT hr = PInvoke.CoCreateInstance(clsid, null, clsctx, iid, out object result);
 
             //                     !! WARNING !!
             // An exception may be thrown on the line below if UniGetUI
-            // runs as administrator or when WinGet is not installed on the
-            // system. It can be safely ignored if any of the conditions
+            // runs as administrator and AllowLowerTrustRegistration settings is not checked
+            // or when WinGet is not installed on the system.
+            // It can be safely ignored if any of the conditions
             // above are met.
             Marshal.ThrowExceptionForHR(hr);
-
 
             pUnknown = Marshal.GetIUnknownForObject(result);
             return MarshalGeneric<T>.FromAbi(pUnknown);
