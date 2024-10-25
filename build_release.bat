@@ -4,10 +4,10 @@
 
 
 rem update resources
-python scripts/apply_versions.py
+"C:\Users\Administrator\Unigetui\scripts/apply_versions.py"
 
 pushd scripts
-python download_translations.py
+"C:\Users\Administrator\Unigetui\scripts/download_translations.py"
 popd ..
 
 rem clean old builds
@@ -24,15 +24,15 @@ if %errorlevel% neq 0 (
 )
 
 rem build executable
-dotnet clean src/UniGetUI.sln
-dotnet publish src/UniGetUI/UniGetUI.csproj /noLogo /property:Configuration=Release /property:Platform=x64
+dotnet clean "C:\Users\Administrator\Unigetui\src\/UniGetUI.sln"
+dotnet publish "C:\Users\Administrator\Unigetui\src\/UniGetUI/UniGetUI.csproj /noLogo /property:Configuration=Release /property:Platform=x64"
 
 rem sign code
 
 rmdir /Q /S unigetui_bin
 
 mkdir unigetui_bin
-robocopy src\UniGetUI\bin\x64\Release\net8.0-windows10.0.22621.0\win-x64\publish unigetui_bin *.* /MOVE /E
+robocopy "C:\Users\Administrator\Unigetui\src\\UniGetUI\bin\x64\Release\net8.0-windows10.0.22621.0\win-x64\publish unigetui_bin *.* /MOVE /E"
 rem pushd src\UniGetUI\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish
 pushd unigetui_bin
 
